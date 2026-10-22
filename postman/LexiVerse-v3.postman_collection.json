@@ -1,0 +1,878 @@
+{
+  "info": {
+    "_postman_id": "5ee562fa-15ca-42e9-b027-abc99a5e8cf2",
+    "name": "LexiVerse 3.0 — REST API (localhost)",
+    "description": "Cập nhật cho LexiVerse V2. Chạy đăng nhập demo, /api/me để lấy cookie + CSRF trước. Tệp CSV chọn thủ công trong Postman Body > form-data > file. Chế độ thẻ chỉ nhận mixed/spelling/reading. V3 thêm API bộ thẻ luyện tập cá nhân, chỉ người sở hữu bài truy cập.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "01 · Kết nối và đăng nhập",
+      "item": [
+        {
+          "name": "01 · Kiểm tra API config",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/config",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ]
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Config có demoLogin\", () => pm.expect(pm.response.json()).to.have.property(\"demoLogin\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "02 · Đăng nhập demo (chỉ localhost)",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/api/auth/demo",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Postman tự lưu cookie HttpOnly lx_session từ response. Chỉ hoạt động ở localhost với APP_ENV=development, DEV_DEMO_LOGIN=true."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "03 · Lấy thông tin & tự lưu CSRF",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/me",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ]
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "if (pm.response.code === 200) { const data = pm.response.json(); if (data.csrf) pm.environment.set(\"csrf\", data.csrf); }",
+                  "pm.test(\"Có csrf\", () => pm.expect(pm.response.json().csrf).to.be.a(\"string\"));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "02 · Quản lý sách",
+      "item": [
+        {
+          "name": "04 · Danh sách sách",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/books",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ]
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "05 · Tạo sách & lưu bookId",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/api/books",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-CSRF-Token",
+                "value": "{{csrf}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Giáo trình tiếng Nhật N5\",\n  \"language\": \"ja\",\n  \"description\": \"Sách tạo từ Postman để kiểm tra database\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "if (pm.response.code === 200) { const data = pm.response.json(); if (data.id) pm.environment.set(\"bookId\", data.id); }"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "06 · Danh sách bài của sách",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/books/{{bookId}}/lessons",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ]
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "03 · Quản lý bài học và từ vựng",
+      "item": [
+        {
+          "name": "07 · Tạo bài & lưu lessonId",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/api/books/{{bookId}}/lessons",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-CSRF-Token",
+                "value": "{{csrf}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Bài 1 - Trường học\",\n  \"description\": \"Từ vựng học tập\",\n  \"sort_order\": 1\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "if (pm.response.code === 200) { const data = pm.response.json(); if (data.id) pm.environment.set(\"lessonId\", data.id); }"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "08 · Tạo từ & lưu wordId",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/api/lessons/{{lessonId}}/words",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-CSRF-Token",
+                "value": "{{csrf}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"term\": \"学校\",\n  \"meaning\": \"trường học\",\n  \"pronunciation\": \"がっこう\",\n  \"alternatives\": [\n    \"がっこう\"\n  ],\n  \"sort_order\": 1\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "if (pm.response.code === 200) { const data = pm.response.json(); if (data.id) pm.environment.set(\"wordId\", data.id); }"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "09 · Xem từ đã lưu",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/lessons/{{lessonId}}/words",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ]
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "09a · Tải template CSV của bài",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/lessons/{{lessonId}}/words/template",
+            "description": "Tải template bằng Save Response to a file, có đúng 5 cột. Yêu cầu cookie đăng nhập teacher."
+          },
+          "response": []
+        },
+        {
+          "name": "09b · Import từ vựng CSV hàng loạt",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-CSRF-Token",
+                "value": "{{csrf}}"
+              }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": ""
+                }
+              ]
+            },
+            "url": "{{baseUrl}}/api/lessons/{{lessonId}}/words/import",
+            "description": "Chọn file CSV UTF-8 theo template ở Body → form-data → file. Không đặt Content-Type thủ công; Postman tự tạo multipart boundary. 2 MB, 1000 dòng, bỏ qua từ trùng."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "04 · Lớp học",
+      "item": [
+        {
+          "name": "10 · Tạo lớp & lưu classId",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/api/classes",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-CSRF-Token",
+                "value": "{{csrf}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Lớp tiếng Nhật N5\",\n  \"language\": \"ja\",\n  \"description\": \"Lớp thử trên Postman\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "if (pm.response.code === 200) { const data = pm.response.json(); if (data.id) pm.environment.set(\"classId\", data.id); }"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "11 · Xem danh sách lớp",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/classes",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ]
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "const cs=pm.response.code===200 ? pm.response.json() : []; const c=cs.find(x=>x.id===pm.environment.get(\"classId\")); if(c && c.invite_code)pm.environment.set(\"classInviteCode\",c.invite_code);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "12 · Xem danh sách thành viên lớp",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/classes/{{classId}}/members",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ]
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "05 · Live game · Host",
+      "item": [
+        {
+          "name": "13 · Tạo phiên LIVE & lưu PIN",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/api/sessions",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-CSRF-Token",
+                "value": "{{csrf}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"lessonId\": \"{{lessonId}}\",\n  \"title\": \"Game tiếng Nhật N5\",\n  \"mode\": \"reading\",\n  \"speed\": \"slow\",\n  \"shuffle\": false\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "if(pm.response.code===200){const j=pm.response.json(); pm.environment.set(\"sessionId\",j.id);pm.environment.set(\"pin\",j.pin);}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "14 · Xem thông tin phiên",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/sessions/{{sessionId}}",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ]
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "17 · Bắt đầu game (sau khi player tham gia)",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/api/sessions/{{sessionId}}/start",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-CSRF-Token",
+                "value": "{{csrf}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "20 · Xem sảnh / điểm số",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/sessions/{{sessionId}}",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ]
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "21 · Kết thúc game",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/api/sessions/{{sessionId}}/end",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-CSRF-Token",
+                "value": "{{csrf}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "22 · Xem báo cáo",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/sessions/{{sessionId}}/report",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ]
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "23 · Tải CSV báo cáo",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/sessions/{{sessionId}}/report.csv",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ]
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "06 · Live game · Player",
+      "item": [
+        {
+          "name": "15 · Tra cứu PIN không cần đăng nhập",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/public/session?pin={{pin}}",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ]
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "16 · Học sinh tham gia & lưu token",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/api/public/join",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"pin\": \"{{pin}}\",\n  \"nickname\": \"HocSinhPostman\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Gửi request này một lần cho mỗi nickname. Nếu gọi lặp lại sẽ nhận 409 vì trùng tên."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "if(pm.response.code===200){const j=pm.response.json();pm.environment.set(\"playerToken\",j.playerToken);pm.environment.set(\"participantId\",j.participantId);}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "18 · Xem câu hỏi hiện tại",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/play/{{sessionId}}/state",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Player-Token",
+                "value": "{{playerToken}}"
+              }
+            ]
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "if(pm.response.code===200){const j=pm.response.json();if(j.index!==undefined)pm.environment.set(\"roundIndex\",j.index);}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "19 · Nộp đáp án (chỉ 1 lần/lượt)",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/api/play/{{sessionId}}/answer",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Player-Token",
+                "value": "{{playerToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"roundIndex\": {{roundIndex}},\n  \"answer\": \"がっこう\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Chế độ reading, từ 学校 có đáp án がっこう. Chỉ gọi ngay sau khi host bắt đầu, trước khi lượt kết thúc. Khi có nhiều thẻ, sửa roundIndex theo /state; một lần nộp/lượt."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "18b · Nghe âm thanh câu Cách đọc",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Player-Token",
+                "value": "{{playerToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/play/{{sessionId}}/audio?roundIndex=0",
+            "description": "Chỉ áp dụng khi round 0 đang OPEN và là thẻ reading. Đổi roundIndex theo lượt hiện tại. Trả MP3, yêu cầu Internet lần đầu để TTS."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "07 · Luyện tập tích hợp V3",
+      "item": [
+        {
+          "name": "Bộ thẻ luyện tập — Hỗn hợp",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/practice/lessons/{{lessonId}}/cards?mode=mixed",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "practice",
+                "lessons",
+                "{{lessonId}}",
+                "cards"
+              ],
+              "query": [
+                {
+                  "key": "mode",
+                  "value": "mixed"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Bộ thẻ luyện tập — Chính tả",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/practice/lessons/{{lessonId}}/cards?mode=spelling"
+          },
+          "response": []
+        },
+        {
+          "name": "Bộ thẻ luyện tập — Cách đọc",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/practice/lessons/{{lessonId}}/cards?mode=reading"
+          },
+          "response": []
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://127.0.0.1:8000"
+    }
+  ]
+}

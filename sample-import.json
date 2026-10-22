@@ -1,0 +1,19 @@
+{
+  "sets": [
+    {"id":"set-en-oxford-u20","name":"3000 Oxford Vocabulary - Unit 20","languageCode":"en","description":"Bộ từ vựng tiếng Anh theo game gốc"},
+    {"id":"set-ja-kanji-n5n4","name":"Kanji Thực Chiến N5 - N4","languageCode":"ja","description":"Kanji, Hiragana và Romaji"},
+    {"id":"set-zh-hsk-core","name":"Hán Ngữ HSK Trọng Tâm","languageCode":"zh-CN","description":"Chữ Hán giản thể và Pinyin"}
+  ],
+  "items": [
+    {"id":"item-en-1","setId":"set-en-oxford-u20","term":"suspicion","meaning":"sự nghi ngờ","pronunciation":"/səˈspɪʃ.ən/","acceptedAnswers":[],"orderIndex":1},
+    {"id":"item-en-2","setId":"set-en-oxford-u20","term":"harmony","meaning":"hòa âm, sự hài hòa","pronunciation":"/ˈhɑː.mə.ni/","acceptedAnswers":[],"orderIndex":2},
+    {"id":"item-en-3","setId":"set-en-oxford-u20","term":"disclose","meaning":"tiết lộ","pronunciation":"/dɪˈskləʊz/","acceptedAnswers":[],"orderIndex":3},
+    {"id":"item-en-4","setId":"set-en-oxford-u20","term":"erect","meaning":"dựng lên, xây dựng","pronunciation":"/ɪˈrekt/","acceptedAnswers":[],"orderIndex":4},
+    {"id":"item-en-5","setId":"set-en-oxford-u20","term":"capitalism","meaning":"chủ nghĩa tư bản","pronunciation":"/ˈkæp.ɪ.təl.ɪ.zəm/","acceptedAnswers":[],"orderIndex":5},
+    {"id":"item-en-6","setId":"set-en-oxford-u20","term":"premier","meaning":"hàng đầu, thứ nhất","pronunciation":"/ˈprem.i.ər/","acceptedAnswers":[],"orderIndex":6},
+    {"id":"item-ja-1","setId":"set-ja-kanji-n5n4","term":"約束","meaning":"lời hứa, cuộc hẹn","pronunciation":"やくそく","acceptedAnswers":["yakusoku"],"orderIndex":1},
+    {"id":"item-ja-2","setId":"set-ja-kanji-n5n4","term":"図書館","meaning":"thư viện","pronunciation":"としょかん","acceptedAnswers":["toshokan"],"orderIndex":2},
+    {"id":"item-zh-1","setId":"set-zh-hsk-core","term":"努力","meaning":"nỗ lực, cố gắng","pronunciation":"nǔ lì","acceptedAnswers":["nu li","nuli"],"orderIndex":1},
+    {"id":"item-zh-2","setId":"set-zh-hsk-core","term":"人工智能","meaning":"trí tuệ nhân tạo","pronunciation":"rén gōng zhì néng","acceptedAnswers":["ren gong zhi neng","AI"],"orderIndex":2}
+  ]
+}
