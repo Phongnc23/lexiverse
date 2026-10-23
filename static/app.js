@@ -4,7 +4,7 @@ const esc=(s)=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':
 const langName={en:'🇬🇧 Tiếng Anh',ja:'🇯🇵 Tiếng Nhật','zh-CN':'🇨🇳 Tiếng Trung'};
 const statusName={LOBBY:'Sảnh chờ',LIVE:'Đang chơi',PAUSED:'Tạm dừng',RESULTS:'Hoàn tất',CANCELLED:'Đã hủy'};
 const flags={en:'🇬🇧',ja:'🇯🇵','zh-CN':'🇨🇳'};
-const A={user:null,config:null,books:[],classes:[],sessions:[],activeBook:null,activeLesson:null,socket:null,poll:null,ticker:null,currentState:null,playerToken:null,host:false,sid:null,route:'',lastPlayerSig:null,reconnectTimer:null,lastAudioKey:null,practice:null,practiceTimer:null,postLogin:null};
+const A={user:null,config:null,books:[],classes:[],sessions:[],activeBook:null,activeLesson:null,socket:null,poll:null,ticker:null,currentState:null,playerToken:null,host:false,sid:null,route:'',lastPlayerSig:null,reconnectTimer:null,lastAudioKey:null,practice:null,practiceTimer:null,postLogin:null,liveClock:null,lastHostSig:null,liveVisualRatio:0,kanaVisible:false};
 const apiBase='/api';
 function toast(msg,error=false){let t=$('#toast');t.className='toast'+(error?' error':'');t.textContent=msg;t.style.display='block';clearTimeout(toast.timer);toast.timer=setTimeout(()=>t.style.display='none',4000)}
 function niceError(e){const m=e?.message||'Đã có lỗi, vui lòng thử lại';toast(m,true);return m}
@@ -25,7 +25,7 @@ const badge=s=>`<span class="pill ${s==='LIVE'?'good':s==='LOBBY'?'blue':s==='PA
 const date=n=>n?new Date(n).toLocaleString('vi-VN'):'—';
 function goto(url){stopPractice();disconnect();history.pushState({},'',url);render();window.scrollTo(0,0)}
 window.addEventListener('popstate',()=>{stopPractice();disconnect();render()});
-function disconnect(){if(A.socket){A.socket.onclose=null;A.socket.close();A.socket=null;}if(A.poll){clearInterval(A.poll);A.poll=null}if(A.ticker){clearInterval(A.ticker);A.ticker=null}if(A.reconnectTimer)clearTimeout(A.reconnectTimer);A.currentState=null;A.lastPlayerSig=null;A.lastAudioKey=null;A.sid=null;}
+function disconnect(){if(A.socket){A.socket.onclose=null;A.socket.close();A.socket=null;}if(A.poll){clearInterval(A.poll);A.poll=null}if(A.ticker){cancelAnimationFrame(A.ticker);A.ticker=null}if(A.reconnectTimer)clearTimeout(A.reconnectTimer);A.currentState=null;A.lastPlayerSig=null;A.lastAudioKey=null;A.sid=null;A.liveClock=null;A.lastHostSig=null;A.kanaVisible=false;}
 function modal(title,fields,submit){
  const root=$('#modal-root');root.innerHTML=`<div class="modalback" role="presentation"><div class="modalbox" role="dialog" aria-modal="true" aria-labelledby="dialog-title"><div class="modalhead"><h2 id="dialog-title">${esc(title)}</h2><button class="closebtn" id="closeModal" aria-label="Đóng">×</button></div><form id="modalForm">${fields}<div class="modalfoot"><button type="button" class="btn ghost" id="cancelModal">Hủy</button><button type="submit" class="btn primary" id="saveModal">Lưu thay đổi</button></div></form></div></div>`;
  const close=()=>root.innerHTML='';$('#closeModal').onclick=$('#cancelModal').onclick=close;
@@ -255,8 +255,17 @@ async function newSession(defaultLesson=null){let books=await getBooks(),classes
  const defaultId=ls.some(x=>x.id===defaultLesson)?defaultLesson:ls[0].id;
  modal('🚀 Tạo phòng chơi trực tiếp',`<p class="sub mb16">Một phiên sử dụng một bài học và chấm điểm riêng cho từng người trên máy chủ.</p>${select('lessonId','Bài học',ls.map(l=>[l.id,`${l.bookTitle} → ${l.title} (${l.wordCount} từ)`]),defaultId)}${field('title','Tên phiên',ls.find(x=>x.id===defaultId)?.title||'Đấu trường từ vựng')}${select('classId','Gắn với lớp (không bắt buộc)',[['','Không gắn lớp'],...classes.filter(c=>c.status==='ACTIVE').map(c=>[c.id,c.name])],'')}
  <div class="formgrid"><div>${select('mode','Chế độ thẻ',[['mixed','🎲 Hỗn hợp'],['spelling','✍️ Chính tả'],['reading','🎧 Cách đọc']],'mixed')}</div><div>${select('speed','Tốc độ',[['slow','🐢 Chậm · 20 giây'],['normal','⚡ Vừa · 12 giây'],['fast','🚀 Nhanh · 8 giây']],'normal')}</div></div>
- <label class="flex mb16"><input name="shuffle" type="checkbox" value="on"> Trộn thứ tự từ ngẫu nhiên</label><label class="flex mb16"><input name="allowLate" type="checkbox" value="on"> Cho phép người chơi tham gia khi đã bắt đầu</label>`,async v=>{
-  v.shuffle=Boolean(v.shuffle);v.allowLate=Boolean(v.allowLate);v.title=v.title.trim();const result=await api('/sessions','POST',v);goto('/host/'+result.id)
+ <label class="formrow"><span class="label">Số từ sử dụng trong phiên *</span><input class="field" type="number" name="count" min="1" max="${ls.find(x=>x.id===defaultId).wordCount}" value="${Math.min(10,ls.find(x=>x.id===defaultId).wordCount)}" required inputmode="numeric"><span class="sub" id="sessionCountHint">Tối đa ${ls.find(x=>x.id===defaultId).wordCount} từ · Có thể chọn ít hơn tổng số từ trong bài.</span></label>
+ <label class="flex mb16"><input name="shuffle" type="checkbox" value="on" checked> Trộn thứ tự từ ngẫu nhiên</label><label class="flex mb16"><input name="allowLate" type="checkbox" value="on"> Cho phép người chơi tham gia khi đã bắt đầu</label>`,async v=>{
+  v.shuffle=Boolean(v.shuffle);v.allowLate=Boolean(v.allowLate);v.count=Number(v.count);
+  if(!Number.isInteger(v.count)||v.count<1)throw Error('Số từ phải là số nguyên dương');
+  v.title=v.title.trim();const result=await api('/sessions','POST',v);goto('/host/'+result.id)
+ });
+ const lessonSelect=$('#modalForm [name="lessonId"]'),countInput=$('#modalForm [name="count"]');
+ lessonSelect.addEventListener('change',()=>{
+  const lesson=ls.find(x=>x.id===lessonSelect.value);if(!lesson)return;
+  countInput.max=String(lesson.wordCount);countInput.value=String(Math.min(10,lesson.wordCount));
+  $('#sessionCountHint').textContent=`Tối đa ${lesson.wordCount} từ · Có thể chọn ít hơn tổng số từ trong bài.`;
  });
 }
 async function downloadTemplate(lid){
@@ -315,7 +324,7 @@ async function showJoin(token){let s;try{s=await api('/public/session?token='+en
 async function showHost(sid){if(!A.user){showLanding();openLogin();return}
  A.sid=sid;A.host=true;const data=await api(`/sessions/${sid}`);receiveLive(data);connectLive(sid,'host');
 }
-function connectLive(sid,role){if(A.socket){A.socket.onclose=null;A.socket.close()};if(A.poll)clearInterval(A.poll);if(A.ticker)clearInterval(A.ticker);
+function connectLive(sid,role){if(A.socket){A.socket.onclose=null;A.socket.close()};if(A.poll)clearInterval(A.poll);if(A.ticker){cancelAnimationFrame(A.ticker);A.ticker=null;}
  let protocol=location.protocol==='https:'?'wss:':'ws:';
  const conn=()=>{
   if(A.sid!==sid)return;
@@ -326,28 +335,57 @@ function connectLive(sid,role){if(A.socket){A.socket.onclose=null;A.socket.close
  };
  conn();
  A.poll=setInterval(async()=>{if(A.sid!==sid)return;try{let state=await api(role==='host'?`/sessions/${sid}`:`/play/${sid}/state`,'GET',undefined,role==='player');receiveLive(state)}catch(e){if(role==='player'&&String(e.message).includes('không còn hợp lệ')){disconnect();toast('Bạn đã rời phòng',true);goto('/')}}},4000);
- A.ticker=setInterval(updateClock,140);
+ scheduleLiveAnimation();
 }
 function liveTop(isHost,s){return `<header class="game-top"><div class="brandline"><div class="brandmark">✦</div><span>LexiVerse <small style="font-size:11px;letter-spacing:0;font-weight:500">${isHost?'· Host':'· Player'}</small></span></div><div class="game-control"><span id="socketStatus" class="status-line"><span class="status-dot"></span> Đã kết nối</span><span class="pill blue">PIN ${esc(s.pin)}</span>${isHost?nav('/app/sessions','✕ Rời màn host','btn small ghost'):''}</div></header>`}
-function receiveLive(s){if(!A.sid)A.sid=s.id;
- const prev=A.currentState;A.currentState=s;
- if(A.host){renderHostView(s);return;}
- // Don't reset a player's typed answer when other people submit their answers.
- const sig=[s.status,s.phase,s.index,Boolean(s.myAnswer),s.me?.score].join('|');
- if(sig!==A.lastPlayerSig){A.lastPlayerSig=sig;renderPlayerView(s)}
- else{let pt=$('#myScore');if(pt)pt.textContent=s.me?.score||0;}
- updateClock();
- // Browsers may block autoplay; the visible "Nghe lại" button remains the fallback.
- if(s.status==='LIVE'&&s.phase==='OPEN'&&s.card?.audio){
+function alignLiveClock(s){
+ if(!['LIVE','PAUSED'].includes(s.status)||!s.card)return;
+ // The server's round start/end are authoritative. Use a monotonic device clock
+ // for animation; do NOT change the clock baseline on every WebSocket/poll packet.
+ const key=[s.id,s.index,s.roundStarted,s.roundEnds,s.status].join(':');
+ if(A.liveClock?.key===key)return;
+ const remain=s.status==='PAUSED'?s.pausedRemaining:Math.max(0,s.roundEnds-s.serverNow);
+ A.liveClock={key,remaining:remain,at:performance.now(),lastRemain:remain};
+ A.liveVisualRatio=Math.max(0,Math.min(1,1-remain/Math.max(1,s.durationMs)));
+}
+function scheduleLiveAnimation(){
+ if(A.ticker)return;
+ A.ticker=requestAnimationFrame(function frame(){
+  A.ticker=null;
+  if(!A.sid||!['LIVE','PAUSED'].includes(A.currentState?.status))return;
+  updateClock();
+  A.ticker=requestAnimationFrame(frame);
+ });
+}
+function hostScoreRows(s){return s.standings.map((p,i)=>`<div class="scoreboard-row"><span>${i<3?['🥇','🥈','🥉'][i]:'#'+(i+1)} ${esc(p.nickname)}</span><strong>${p.score.toLocaleString('vi-VN')}</strong></div>`).join('')||'<p>Đang chờ người chơi...</p>'}
+function receiveLive(s){
+ if(!A.sid)A.sid=s.id;
+ alignLiveClock(s);A.currentState=s;
+ if(A.host){
+  // Do not recreate the falling card when someone else submits an answer.
+  const sig=[s.status,s.phase,s.index,s.locked,s.roster?.length].join('|');
+  if(sig!==A.lastHostSig){A.lastHostSig=sig;renderHostView(s)}
+  else{
+   const score=$('#hostScoreboard');if(score)score.innerHTML=hostScoreRows(s);
+   const count=$('#hostResponseCount');if(count)count.textContent=s.responseCount;
+  }
+ }else{
+  // Preserve the input and the animated card across score-only notifications.
+  const sig=[s.status,s.phase,s.index,Boolean(s.myAnswer),s.me?.score].join('|');
+  if(sig!==A.lastPlayerSig){A.lastPlayerSig=sig;renderPlayerView(s)}
+  else{const pt=$('#myScore');if(pt)pt.textContent=s.me?.score||0;}
+  if(s.status==='LIVE'&&s.phase==='OPEN'&&s.card?.audio){
    const audioKey=s.id+':'+s.index;
    if(A.lastAudioKey!==audioKey){A.lastAudioKey=audioKey;replayAudio().catch(()=>{});}
+  }
  }
+ updateClock();scheduleLiveAnimation();
 }
 function renderHostView(s){let body='';
  if(s.status==='LOBBY'){
   body=`<div class="lobby-panel"><div class="eyebrow text-center">HOST LOBBY · CHỜ NGƯỜI CHƠI</div><h1 class="text-center">${esc(s.title)}</h1><p class="text-center">Người chơi mở camera, quét QR hoặc nhập PIN để tham gia.</p><div class="lobby-grid mt24"><div class="card text-center"><p class="eyebrow">QUÉT ĐỂ THAM GIA</p><div class="qr-box"><img src="/api/sessions/${encodeURIComponent(s.id)}/qr" alt="Mã QR tham gia phòng chơi"></div><div class="pin-number">${esc(s.pin)}</div><p class="sub">Mã PIN của phòng chơi</p><div class="button-row" style="justify-content:center">${action('🔗 Sao chép link','copy-join',s.id,'btn outline-cyan')}${action(s.locked?'🔓 Mở phòng':'🔒 Khóa phòng','lock',s.id,'btn ghost')}</div></div><div class="card"><div class="justify-between mb16"><h3>👥 Sảnh chờ <span class="pill good">${s.roster.filter(p=>!p.removed).length} người</span></h3><span class="pill">${s.count} từ</span></div><div class="lobby-names">${s.roster.filter(p=>!p.removed).map(p=>`<span class="chip">👤 ${esc(p.nickname)} ${action('×','kick',p.id,'btn small ghost')}</span>`).join('')||'<p class="sub">Chưa có người chơi. Mời học sinh vào bằng QR hoặc PIN.</p>'}</div><div class="button-row mt24">${action('🚀 BẮT ĐẦU TRÒ CHƠI','start',s.id,'btn primary',s.roster.every(x=>x.removed)?'disabled':'')}${action('Hủy phiên','end',s.id,'btn danger')}</div><p class="sub mt12">Chỉ giáo viên điều khiển phòng. Tất cả thiết bị bắt đầu đồng thời.</p></div></div></div>`;
  }else if(s.status==='LIVE'||s.status==='PAUSED'){
-  body=`<div class="game-layout"><section class="game-main"><div class="justify-between wrap-mobile"><div><div class="eyebrow">HOST SCREEN</div><h2>${esc(s.title)}</h2></div><div class="game-control">${s.status==='PAUSED'?action('▶ Tiếp tục','resume',s.id,'btn primary'):action('⏸ Tạm dừng','pause',s.id,'btn ghost')}${action(s.locked?'🔓 Mở tham gia':'🔒 Khóa tham gia','lock',s.id,'btn ghost')}${action('■ Kết thúc','end',s.id,'btn danger')}</div></div>${arenaHtml(s,true)}<div class="grid grid-3 mt12"><div class="scoretile"><b>${s.roster.filter(x=>!x.removed).length}</b><small>Người chơi</small></div><div class="scoretile"><b>${s.responseCount}</b><small>Đã trả lời</small></div><div class="scoretile"><b>${s.index+1}/${s.count}</b><small>Lượt hiện tại</small></div></div></section><aside class="card game-sidebar"><h3>🏆 Bảng điểm trực tiếp</h3><p class="sub">Điểm được máy chủ xác nhận.</p>${s.standings.length?s.standings.map((p,i)=>`<div class="scoreboard-row"><span>${i<3?['🥇','🥈','🥉'][i]:'#'+(i+1)} ${esc(p.nickname)}</span><strong>${p.score.toLocaleString('vi-VN')}</strong></div>`).join(''):'<p>Đang chờ người chơi...</p>'}</aside></div>`;
+  body=`<div class="game-layout"><section class="game-main"><div class="justify-between wrap-mobile"><div><div class="eyebrow">HOST SCREEN</div><h2>${esc(s.title)}</h2></div><div class="game-control">${s.status==='PAUSED'?action('▶ Tiếp tục','resume',s.id,'btn primary'):action('⏸ Tạm dừng','pause',s.id,'btn ghost')}${action(s.locked?'🔓 Mở tham gia':'🔒 Khóa tham gia','lock',s.id,'btn ghost')}${action('■ Kết thúc','end',s.id,'btn danger')}</div></div>${arenaHtml(s,true)}<div class="grid grid-3 mt12"><div class="scoretile"><b>${s.roster.filter(x=>!x.removed).length}</b><small>Người chơi</small></div><div class="scoretile"><b id="hostResponseCount">${s.responseCount}</b><small>Đã trả lời</small></div><div class="scoretile"><b>${s.index+1}/${s.count}</b><small>Lượt hiện tại</small></div></div></section><aside class="card game-sidebar"><h3>🏆 Bảng điểm trực tiếp</h3><p class="sub">Điểm được máy chủ xác nhận.</p><div id="hostScoreboard">${hostScoreRows(s)}</div></aside></div>`;
  }else if(s.status==='RESULTS'){
   body=`<div class="lobby-panel"><div class="eyebrow text-center">GAME OVER · PODIUM</div><h1 class="text-center">🏆 Kết quả trận đấu</h1><p class="text-center">${esc(s.title)}</p><div class="podium">${s.standings.slice(0,3).map((p,i)=>`<div class="podium-item"><div class="rank-badge">${['🥇','🥈','🥉'][i]}</div><strong>${esc(p.nickname)}</strong><b>${p.score.toLocaleString('vi-VN')}</b><small>${p.correct_count} câu đúng</small></div>`).join('')}</div><div class="card"><div class="card-title"><h3>📋 Bảng xếp hạng đầy đủ</h3><span class="pill good">${s.standings.length} người</span></div>${s.standings.map(p=>`<div class="scoreboard-row"><span>#${p.rank} ${esc(p.nickname)} · ${p.correct_count} đúng</span><strong>${p.score.toLocaleString('vi-VN')}</strong></div>`).join('')}<div class="button-row mt24">${action('▤ Xem báo cáo chi tiết','report',s.id,'btn primary')}${action('⇩ Xuất CSV','csv',s.id,'btn ghost')}${nav('/app/sessions','Về dashboard','btn ghost')}</div></div></div>`;
  }else body=`<div class="center-stage">${empty('🛑','Phiên đã hủy','Bạn có thể tạo phòng mới bất cứ lúc nào.',nav('/app/sessions','Về danh sách phiên','btn primary'))}</div>`;
@@ -357,14 +395,16 @@ function arenaHtml(s,isHost=false){
  const card=s.card, percentage=s.count?((s.index+1)/s.count)*100:0;
  const label={spelling:'CHÍNH TẢ',reading:'CÁCH ĐỌC'}[card?.mode]||'TỪ VỰNG';
  const reveal=s.phase==='REVEAL', paused=s.status==='PAUSED';
- return `<div class="arena arena-compact" id="gameArena"><div class="progress-top"><span>${Math.max(s.index+1,0)}/${s.count}</span><div class="meter"><span style="width:${percentage}%"></span></div><span>✦</span></div><div class="dangerline"></div>${card?`<div class="fall-card game-card" id="fallCard"><div class="timebar"><span id="fuseBar"></span></div><span class="label-dark card-mode-label">${label}</span>${card.audio?`<button class="card-sound" type="button" data-action="play-audio" title="Nghe lại câu hỏi" aria-label="Nghe lại câu hỏi">🔊</button>`:''}<div class="prompt-text">${esc(card.prompt)}</div><div class="question-underline">${reveal?'✓':'· · · · ·'}</div>${reveal?`<div class="card-reveal"><span>Đáp án:</span> <strong>${esc(card.answer||'')}</strong></div>`:''}</div>`:''}${paused?'<div class="arena-overlay"><div><div class="waiting-emoji">⏸</div><h2>Tạm dừng</h2><p>Giáo viên sẽ tiếp tục trò chơi.</p></div></div>':''}</div>`;
+ const shape=Array.isArray(card?.slotLengths)?card.slotLengths.filter(x=>Number.isInteger(x)&&x>=1&&x<=100):[];
+ const slots=shape.length?shape.map(n=>`<span class="answer-slot-word">${Array.from({length:n},()=>'<span class="answer-slot"></span>').join('')}</span>`).join(''):'';
+ return `<div class="arena arena-compact" id="gameArena"><div class="progress-top"><span>${Math.max(s.index+1,0)}/${s.count}</span><div class="meter"><span style="width:${percentage}%"></span></div><span>✦</span></div><div class="dangerline"></div>${card?`<div class="fall-card game-card" id="fallCard"><div class="timebar"><span id="fuseBar"></span></div><span class="label-dark card-mode-label">${label}</span>${card.audio?`<button class="card-sound" type="button" data-action="play-audio" title="Nghe lại câu hỏi" aria-label="Nghe lại câu hỏi">🔊</button>`:''}<div class="prompt-text">${esc(card.prompt)}</div><div class="question-underline answer-slots" aria-label="${shape.reduce((a,b)=>a+b,0)} ký tự cần nhập">${reveal?'✓':slots}</div>${reveal?`<div class="card-reveal"><span>Đáp án:</span> <strong>${esc(card.answer||'')}</strong></div>`:''}</div>`:''}${paused?'<div class="arena-overlay"><div><div class="waiting-emoji">⏸</div><h2>Tạm dừng</h2><p>Giáo viên sẽ tiếp tục trò chơi.</p></div></div>':''}</div>`;
 }
 function renderPlayerView(s){let me=s.me||{},htmlBody='';
  if(s.status==='LOBBY'){
   htmlBody=`<main class="center-stage"><div class="waiting-emoji">⏳</div><div class="eyebrow">ĐÃ VÀO SẢNH CHỜ</div><h1>Xin chào, ${esc(me.nickname)}!</h1><p>Bạn đang ở phòng <strong style="color:white">${esc(s.title)}</strong></p><div class="card mt24"><h2>🎉 Bạn đã sẵn sàng!</h2><p>Đang chờ giáo viên nhấn “Bắt đầu trò chơi”. Màn hình sẽ tự động chuyển khi cuộc thi bắt đầu.</p><div class="tagrow" style="justify-content:center"><span class="pill blue">PIN ${esc(s.pin)}</span><span class="pill warn">${s.count} thẻ từ</span></div></div></main>`;
  }else if(s.status==='LIVE'||s.status==='PAUSED'){
   let done=Boolean(s.myAnswer);
-  htmlBody=`<div class="game-layout" style="max-width:1000px;grid-template-columns:minmax(0,1fr)"><section class="game-main"><div class="justify-between"><div><div class="eyebrow">⚡ PLAYER ARENA</div><h2>${esc(s.title)}</h2></div><div class="game-control"><span class="pill">👤 ${esc(me.nickname)}</span><span class="pill warn">⭐ <span id="myScore">${me.score}</span> PTS</span></div></div>${arenaHtml(s)}${!done?`<form class="answer-bar" id="answerForm"><input id="answerInput" class="field" type="text" maxlength="200" autocomplete="off" autocorrect="off" spellcheck="false" placeholder="Gõ câu trả lời..." aria-label="Nhập đáp án" ${s.status!=='LIVE'||s.phase!=='OPEN'?'disabled':''}><button class="btn amber" ${s.status!=='LIVE'||s.phase!=='OPEN'?'disabled':''}>Gửi ↵</button></form>`:`<div class="compact-feedback ${s.myAnswer.correct?'is-good':'is-wrong'}" role="status"><strong>${s.myAnswer.correct?'✓ Chính xác!':'✓ Đã nhận đáp án'}</strong><span>${s.myAnswer.correct?'+'+s.myAnswer.points+' điểm':'Chờ kết quả lượt chơi'} · Chờ thẻ tiếp theo…</span></div>`}<div class="game-hint">⏱️ Thời gian và điểm được quyết định bởi máy chủ. Mỗi thẻ nộp một lần.</div></section></div>`;
+  htmlBody=`<div class="game-layout" style="max-width:1000px;grid-template-columns:minmax(0,1fr)"><section class="game-main"><div class="justify-between"><div><div class="eyebrow">⚡ PLAYER ARENA</div><h2>${esc(s.title)}</h2></div><div class="game-control"><span class="pill">👤 ${esc(me.nickname)}</span><span class="pill warn">⭐ <span id="myScore">${me.score}</span> PTS</span></div></div>${arenaHtml(s)}${!done?`<form class="answer-bar" id="answerForm"><input id="answerInput" class="field" type="text" inputmode="text" enterkeyhint="send" lang="${esc(s.card?.language||'en')}" maxlength="200" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="Gõ câu trả lời..." aria-label="Nhập đáp án" ${s.status!=='LIVE'||s.phase!=='OPEN'?'disabled':''}><button class="btn amber" ${s.status!=='LIVE'||s.phase!=='OPEN'?'disabled':''}>Gửi ↵</button></form><div class="keyboard-toolbar"><button class="btn small ghost" type="button" data-action="focus-keyboard">⌨️ Mở / đổi bàn phím</button>${s.card?.language==='ja'?`<button class="btn small outline-cyan" type="button" data-action="toggle-kana">あ Kana trên web</button>`:''}<span class="keyboard-tip">${s.card?.language==='ja'?'Gõ Hiragana':s.card?.language==='zh-CN'?'Gõ Pinyin':'Gõ tiếng Anh'} · Đổi ngôn ngữ bằng phím 🌐 trên bàn phím điện thoại.</span></div>${s.card?.language==='ja'?`<div class="kana-pad ${A.kanaVisible?'':'hidden'}" id="kanaPad" aria-label="Bàn phím Hiragana trong website">${Array.from('あいうえおかきくけこさしすせそたちつてとなにぬねのはひふへほまみむめもやゆよらりるれろわをんがぎぐげござじずぜぞだぢづでどばびぶべぼぱぴぷぺぽっゃゅょー').map(k=>`<button type="button" class="kana-key" data-action="insert-kana" data-id="${k}">${k}</button>`).join('')}<button type="button" class="kana-key kana-control" data-action="erase-kana">⌫ Xóa</button></div>`:''}`:`<div class="compact-feedback ${s.myAnswer.correct?'is-good':'is-wrong'}" role="status"><strong>${s.myAnswer.correct?'✓ Chính xác!':'✓ Đã nhận đáp án'}</strong><span>${s.myAnswer.correct?'+'+s.myAnswer.points+' điểm':'Chờ kết quả lượt chơi'} · Chờ thẻ tiếp theo…</span></div>`}<div class="game-hint">⏱️ Thời gian và điểm được quyết định bởi máy chủ. Mỗi thẻ nộp một lần.</div></section></div>`;
  }else if(s.status==='RESULTS'){
   let rank=me.rank||'—';htmlBody=`<main class="center-stage"><div class="waiting-emoji">🏆</div><div class="eyebrow">HOÀN THÀNH TRÒ CHƠI</div><h1>Xuất sắc, ${esc(me.nickname)}!</h1><p>Bạn đã hoàn thành ${s.count} thẻ từ vựng.</p><div class="grid grid-3 mt24"><div class="card"><div class="stat-number" style="color:#ffc566">#${rank}</div><small>Xếp hạng</small></div><div class="card"><div class="stat-number">${me.score.toLocaleString('vi-VN')}</div><small>Điểm số</small></div><div class="card"><div class="stat-number">${me.correct}/${s.count}</div><small>Câu đúng</small></div></div><div class="card mt24"><h3>🏅 Bảng xếp hạng</h3>${(s.standings||[]).slice(0,10).map(p=>`<div class="scoreboard-row"><span>#${p.rank} ${esc(p.nickname)}</span><strong>${p.score.toLocaleString('vi-VN')}</strong></div>`).join('')}</div><div class="mt24">${nav('/','Về trang chủ','btn primary')}</div></main>`;
  }else htmlBody=`<main class="center-stage">${empty('🛑','Phiên đã kết thúc','Bạn có thể tham gia buổi chơi mới.',nav('/','Về trang chủ','btn primary'))}</main>`;
@@ -372,21 +412,23 @@ function renderPlayerView(s){let me=s.me||{},htmlBody='';
  if($('#answerForm')){$('#answerForm').onsubmit=async ev=>{ev.preventDefault();const inp=$('#answerInput');const value=inp?.value.trim();if(!value)return;inp.disabled=true;try{let r=await api(`/play/${s.id}/answer`,'POST',{roundIndex:s.index,answer:value},true);let st=await api(`/play/${s.id}/state`,'GET',undefined,true);receiveLive(st)}catch(e){niceError(e);inp.disabled=false}};}
  updateClock();
 }
-function updateClock(){let s=A.currentState;if(!s||!['LIVE','PAUSED'].includes(s.status)||!s.card)return;
- let duration=s.durationMs||12000;
- // Server-clock offset is estimated on receipt; client animation never grades answers.
- let remain=s.status==='PAUSED'?s.pausedRemaining:Math.max(0,s.roundEnds-(Date.now()+(A.serverOffset||0)));
- let pct=Math.max(0,Math.min(100,(remain/duration)*100));
+function updateClock(){
+ const s=A.currentState,clock=A.liveClock;
+ if(!s||!clock||!['LIVE','PAUSED'].includes(s.status)||!s.card)return;
+ const duration=Math.max(1,s.durationMs||12000);
+ let remain=s.status==='PAUSED'?clock.remaining:Math.max(0,clock.remaining-(performance.now()-clock.at));
+ remain=Math.min(clock.lastRemain,remain);clock.lastRemain=remain;
+ const pct=Math.max(0,Math.min(100,100*remain/duration));
  const fuse=$('#fuseBar');if(fuse)fuse.style.width=pct+'%';
- const fc=$('#fallCard'),stage=$('#gameArena');if(fc&&stage){
-  const start=Math.max(65,stage.clientHeight*.21);
-  const end=Math.max(start,stage.clientHeight-fc.offsetHeight-16);
-  const ratio=s.phase==='REVEAL'?.12:(100-pct)/100;
-  fc.style.top=(start+(end-start)*ratio)+'px';
- }
+ const fc=$('#fallCard'),stage=$('#gameArena');if(!fc||!stage)return;
+ // Progress only advances downwards during an open round, never backwards.
+ if(s.phase==='OPEN')A.liveVisualRatio=Math.max(A.liveVisualRatio,1-pct/100);
+ const ratio=s.phase==='REVEAL'?A.liveVisualRatio:Math.max(0,Math.min(1,A.liveVisualRatio));
+ const start=Math.max(68,stage.clientHeight*.20);
+ const end=Math.max(start,stage.clientHeight-fc.offsetHeight-18);
+ fc.style.top=start+'px';
+ fc.style.transform=`translate3d(-50%, ${(end-start)*ratio}px, 0)`;
 }
-const originalReceive=receiveLive;
-receiveLive=function(s){A.serverOffset=s.serverNow-Date.now();originalReceive(s)};
 async function showReport(sid){let r=await api(`/sessions/${sid}/report`);
  const participantRows=r.participants.map(p=>`<tr><td>#${p.rank}</td><td>${esc(p.nickname)}</td><td><strong>${p.score}</strong></td><td>${p.correct_count}</td><td>${Math.round(p.latency_total/1000)}s</td></tr>`).join('');
  const roundRows=r.rounds.map(round=>`<tr><td>${round.index}</td><td>${esc(round.term)}</td><td>${esc(round.mode)}</td><td>${round.correct}/${round.responseCount}</td><td>${round.accuracyPct}%</td></tr>`).join('');
@@ -426,6 +468,10 @@ async function handleAction(type,id,element){switch(type){
  case 'download-template':return downloadTemplate(id);
  case 'bulk-import':return bulkImportWords(id);
  case 'play-audio':return replayAudio();
+ case 'focus-keyboard':{const input=$('#answerInput');if(input&&!input.disabled){input.focus({preventScroll:true});input.scrollIntoView({block:'nearest'});}return;}
+ case 'toggle-kana':{A.kanaVisible=!A.kanaVisible;const pad=$('#kanaPad');if(pad)pad.classList.toggle('hidden',!A.kanaVisible);return;}
+ case 'insert-kana':{const input=$('#answerInput');if(!input||input.disabled)return;const a=input.selectionStart??input.value.length,b=input.selectionEnd??a;input.value=input.value.slice(0,a)+id+input.value.slice(b);input.setSelectionRange(a+id.length,a+id.length);return;}
+ case 'erase-kana':{const input=$('#answerInput');if(!input||input.disabled)return;const a=input.selectionStart??input.value.length,b=input.selectionEnd??a;const start=a===b?Math.max(0,a-1):a;input.value=input.value.slice(0,start)+input.value.slice(b);input.setSelectionRange(start,start);return;}
  case 'copy-join':{let data=await api(`/sessions/${id}`);await navigator.clipboard.writeText(location.origin+'/join/'+data.joinToken);return toast('Đã sao chép link phòng chơi')}
  case 'lock':{let s=A.currentState;await api(`/sessions/${id}/lock`,'POST',{locked:!s.locked});return refreshLive()}
  case 'kick':return confirmTask('Loại người chơi khỏi phòng? Tài khoản này sẽ không thể tiếp tục.',async()=>{await api(`/sessions/${A.sid}/kick/${id}`,'POST',{});await refreshLive()});

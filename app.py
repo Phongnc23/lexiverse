@@ -191,7 +191,8 @@ def own_player_view(s,p):
     if 0<=s['question_index']<base['count']:
         c=cards_for_session(s)[s['question_index']]
         base['card']={'prompt':c['prompt'],'mode':c['mode'],'variant':c.get('variant'),
-                      'language':c.get('language','en'),'audio':c['mode']=='reading'}
+                      'language':c.get('language','en'),'audio':c['mode']=='reading',
+                      'slotLengths':[len(part) for part in c['answer'].split(' ') if part][:25]}
         if s['phase']=='REVEAL' or s['status']=='RESULTS': base['card']['answer']=c['answer']
     if p:
         base['me']={'id':p['id'],'nickname':p['nickname'],'score':p['score'],'streak':p['streak'],
@@ -676,8 +677,14 @@ async def create_live_session(req:Request):
     if mode not in MODES or speed not in SPEEDS:err(422,'Chế độ hoặc tốc độ không hợp lệ')
     cid=d.get('classId') or None
     if cid:class_owner(cid,u['id'])
-    count=int(d.get('count',len(words)))
-    if not 1<=count<=len(words):err(422,'Số thẻ không hợp lệ')
+    try:
+        raw_count=d.get('count',len(words))
+        if isinstance(raw_count,bool) or str(raw_count).strip()!=str(int(raw_count)):
+            raise ValueError()
+        count=int(raw_count)
+    except (TypeError,ValueError,OverflowError):
+        err(422,'Số từ phải là số nguyên hợp lệ')
+    if not 1<=count<=len(words):err(422,f'Số từ phải nằm trong khoảng 1 đến {len(words)}')
     if d.get('shuffle'):secrets.SystemRandom().shuffle(words)
     cards=build_cards(words[:count],mode,lesson['language']);sid=uid();pin=''
     for _ in range(20):

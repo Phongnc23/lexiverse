@@ -127,3 +127,17 @@ select option{background:#111b2f;color:#edf5ff}
  .practice-screen .game-top .brandline{font-size:15px}
  .practice-screen .game-top .brandmark{display:none}
 }
+
+/* V4: smooth GPU-composited falling card; no top-transition jitter on state updates. */
+.arena-compact .fall-card.game-card{transition:none!important;will-change:transform;backface-visibility:hidden}
+.answer-slots{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;align-items:center;min-height:28px;max-width:100%;margin:10px auto}
+.answer-slot-word{display:inline-flex;gap:4px;justify-content:center;flex-wrap:nowrap;max-width:100%}
+.answer-slot{display:inline-block;width:clamp(9px,2vw,17px);height:21px;border-bottom:2px solid #ffe7ae;flex-shrink:1;min-width:6px}
+.keyboard-toolbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:9px}
+.keyboard-tip{font-size:11px;color:#b1c4df;line-height:1.6}
+.kana-pad{display:grid;grid-template-columns:repeat(10,minmax(0,1fr));gap:5px;margin-top:10px;padding:10px;background:#111e32;border:1px solid #30506b;border-radius:14px}
+.kana-key{border:1px solid #3c5372;border-radius:9px;padding:7px 2px;background:#243750;color:#fff;font-size:clamp(14px,2vw,19px);font-weight:600;cursor:pointer;min-height:36px;touch-action:manipulation}
+.kana-key:active{background:#31647c}.kana-control{grid-column:span 2;background:#603b39}
+@media(max-width:730px){.keyboard-toolbar{gap:6px}.keyboard-toolbar .btn{min-height:36px;white-space:normal}.keyboard-tip{flex-basis:100%}.kana-pad{grid-template-columns:repeat(7,minmax(0,1fr));gap:4px;padding:7px}.answer-slot{width:clamp(7px,2.8vw,14px);height:17px}.answer-slot-word{gap:3px}.answer-slots{gap:7px}}
+
+@media(max-width:730px){.arena-compact{height:clamp(320px,52svh,440px)}}
